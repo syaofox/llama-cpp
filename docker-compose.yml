@@ -1,0 +1,44 @@
+services:
+  # 1. 强劲的大模型后端 (llama.cpp)
+  llama-backend:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: llama-backend
+    volumes:
+      - ./models:/models
+    environment:
+      - TZ=Asia/Shanghai
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: >
+      -m /models/Qwythos-9B-Claude-Mythos-5-1M-Q5_K_M.gguf
+      --host 0.0.0.0
+      --port 8080
+      -ngl 99
+      -c 8192
+      --embedding
+    restart: unless-stopped
+
+  # 2. 惊艳的聊天网页前端 (Open WebUI)
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "3000:8080" # 将网页端口映射到宿主机的 3000 端口
+    volumes:
+      - open-webui-data:/app/backend/data
+    environment:
+      - TZ=Asia/Shanghai
+      # 核心：直接指向上面 llama.cpp 容器的内部服务地址和端口
+      - OPENAI_API_BASE_URL=http://llama-backend:8080/v1
+      - OPENAI_API_KEY=none # llama.cpp 默认不需要 key，填 none 占位
+    depends_on:
+      - llama-backend
+    restart: unless-stopped
+
+volumes:
+  open-webui-data: # 用于持久化保存你的聊天记录和用户数据
